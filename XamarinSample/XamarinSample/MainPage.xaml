@@ -1,0 +1,30 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://xamarin.com/schemas/2014/forms"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="XamarinSample.MainPage"
+             xmlns:local="clr-namespace:XamarinSample.CustomControl">
+
+    <StackLayout>
+        <local:DrawView x:Name="drawView" VerticalOptions="FillAndExpand"></local:DrawView>
+
+        <StackLayout Orientation="Horizontal">
+            <Label Text="ダブル表示"></Label>
+            <CheckBox x:Name="doubleCheck" CheckedChanged="doubleCheck_CheckedChanged"></CheckBox>
+        </StackLayout>
+
+        <StackLayout Orientation="Horizontal">
+            <Label Text="左更新"></Label>
+            <CheckBox x:Name="leftCheck" CheckedChanged="leftCheck_CheckedChanged"></CheckBox>
+            <Label Text="左反転"></Label>
+            <CheckBox x:Name="leftInvertCheck" CheckedChanged="leftInvertCheck_CheckedChanged"></CheckBox>
+        </StackLayout>
+
+        <StackLayout Orientation="Horizontal">
+            <Label Text="右更新"></Label>
+            <CheckBox x:Name="rightCheck" CheckedChanged="rightCheck_CheckedChanged"></CheckBox>
+            <Label Text="右反転"></Label>
+            <CheckBox x:Name="rightInvertCheck" CheckedChanged="rightInvertCheck_CheckedChanged"></CheckBox>
+        </StackLayout>
+    </StackLayout>
+
+</ContentPage>
