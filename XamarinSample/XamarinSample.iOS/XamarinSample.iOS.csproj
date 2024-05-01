@@ -69,10 +69,10 @@
     <None Include="Info.plist" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="CustomControl\DrawViewRenderer.cs" />
-    <Compile Include="GLCommon.cs" />
+    <Compile Include="MTLCommon.cs" />
     <Compile Include="Rectangular.cs" />
     <Compile Include="RenderControl.cs" />
-    <Compile Include="GLTexture.cs" />
+    <Compile Include="MTLTexture.cs" />
     <Compile Include="FrameBuffer.cs" />
   </ItemGroup>
   <ItemGroup>
