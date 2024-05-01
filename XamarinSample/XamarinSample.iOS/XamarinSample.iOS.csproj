@@ -147,7 +147,6 @@
     <Folder Include="Shader\" />
   </ItemGroup>
   <ItemGroup>
-    <BundleResource Include="Shader\Shader.fsh" />
-    <BundleResource Include="Shader\Shader.vsh" />
+    <Metal Include="Shader\Shaders.metal" />
   </ItemGroup>
 </Project>

@@ -1,30 +1,27 @@
 ﻿using System;
-using GLKit;
-using System.Diagnostics;
-using OpenGLES;
 using XamarinSample.CustomControl;
 using XamarinSample.iOS.CustomControl;
 using Xamarin.Forms;
 using Xamarin.Forms.Platform.iOS;
 using CoreGraphics;
-using Xamarin.Essentials;
 using System.ComponentModel;
 using UIKit;
+using MetalKit;
+using Metal;
 
 [assembly: ExportRenderer (typeof(DrawView), typeof(DrawViewRenderer))]
 namespace XamarinSample.iOS.CustomControl
 {
-	public class DrawViewRenderer : ViewRenderer<DrawView, GLKView>, IGLKViewDelegate
+	public class DrawViewRenderer : ViewRenderer<DrawView, MTKView>, IMTKViewDelegate
     {
         /// <summary>
-        /// OpenGL ESのコンテキスト
+        /// Metalビュー
         /// </summary>
-        private EAGLContext Context { get; set; }
+        private MTKView mtkView;
 
-        /// <summary>
-        /// OpenGLビュー
-        /// </summary>
-        private GLKView glkView;
+        private IMTLDevice device;
+
+        private CGSize size;
 
         private RenderControl renderControl;
 
@@ -45,35 +42,27 @@ namespace XamarinSample.iOS.CustomControl
             {
                 if (Control == null)
                 {
-                    glkView = new GLKView();
-                    SetNativeControl(glkView);
+                    device = MTLDevice.SystemDefault;
 
-                    // コンテキストの作成
-                    Context = new EAGLContext(EAGLRenderingAPI.OpenGLES2);
+                    mtkView = new MTKView();
+                    SetNativeControl(mtkView);
 
-                    if (Context == null)
-                    {
-                        Debug.WriteLine("Failed to create ES context");
-                    }
 
                     // Viewの設定
-                    glkView.Context = Context;
-                    glkView.Delegate = this;
+                    mtkView.ColorPixelFormat = MTLPixelFormat.BGRA8Unorm;
+                    mtkView.Delegate = this;
 
                     this.Element.SizeChanged += Element_SizeChanged;
 
-                    // 使用するコンテキストの指定
-                    EAGLContext.SetCurrentContext(Context);
-
-                    GLCommon.Initialize(glkView);
+                    MTLCommon.Initialize(mtkView, device);
 
                     Rectangle rectangle = this.Element.Bounds;
 
-                    System.Timers.Timer timer = new System.Timers.Timer();
-                    timer.AutoReset = true;
-                    timer.Interval = 1000f / 30;
-                    timer.Elapsed += Timer_Elapsed;
-                    timer.Start();
+                    // System.Timers.Timer timer = new System.Timers.Timer();
+                    // timer.AutoReset = true;
+                    // timer.Interval = 1000f / 30;
+                    // timer.Elapsed += Timer_Elapsed;
+                    // timer.Start();
                 }
             }
         }
@@ -97,17 +86,22 @@ namespace XamarinSample.iOS.CustomControl
 
         private void Timer_Elapsed(object sender, System.Timers.ElapsedEventArgs e)
         {
-            MainThread.BeginInvokeOnMainThread(glkView.Display);
+            //MainThread.BeginInvokeOnMainThread(glkView.Display);
         }
 
-        public void DrawInRect(GLKView view, CGRect rect)
+        public void DrawableSizeWillChange(MTKView view, CGSize size)
+        {
+            this.size = size;
+        }
+
+        public void Draw(MTKView view)
         {
             if (renderControl == null)
             {
-                renderControl = new RenderControl();
+                renderControl = new RenderControl(device);
             }
 
-            renderControl.Draw((int)(rect.Width * UIScreen.MainScreen.Scale), (int)(rect.Height * UIScreen.MainScreen.Scale), doubleDisplay, leftDisplay, rightDisplay, leftInvert, rightInvert);
+            renderControl.Draw((int)size.Width, (int)size.Height, doubleDisplay, leftDisplay, rightDisplay, leftInvert, rightInvert);
         }
     }
 }

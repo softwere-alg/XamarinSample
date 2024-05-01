@@ -1,22 +1,25 @@
 ﻿using System;
-using OpenTK.Graphics.ES30;
+using Metal;
 using SkiaSharp;
+using Xamarin.Forms;
 
 namespace XamarinSample.iOS
 {
 	public class RenderControl
 	{
 		private Rectangular rectangular;
-		private GLTexture imageTexture;
+		private MTLTexture imageTexture;
+        private MTLTexture imageTexture2;
         private FrameBuffer leftFrameBuffer;
         private FrameBuffer rightFrameBuffer;
 
-        public RenderControl()
+        public RenderControl(IMTLDevice device)
 		{
-			rectangular = new Rectangular();
-            imageTexture = new GLTexture(500, 500, 0);
-            leftFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0);
-            rightFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0);
+			rectangular = new Rectangular(device);
+            imageTexture = new MTLTexture(500, 500, 0, device);
+            imageTexture2 = new MTLTexture(500, 500, 0, device);
+            leftFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0, device);
+            rightFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0, device);
         }
 
         private void Draw(SKBitmap bitmap, bool invert)
@@ -24,33 +27,22 @@ namespace XamarinSample.iOS
             int width = imageTexture.Width;
             int height = imageTexture.Height;
 
-            GL.Viewport(0, 0, width, height);
-            GLCommon.GLError();
-
             // カラーを設定して、クリア
-            GL.ClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-            GLCommon.GLError();
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            GLCommon.GLError();
+            MTLCommon.SetClearColor(new Color(0.5f, 0.5f, 0.5f, 1.0f));
 
-            GLCommon.UseProgram();
-
-            GLCommon.SetViewport(width, height);
+            MTLCommon.SetViewport(width, height);
             float size = Math.Min((float)width / 2, (float)height / 2);
-            GLCommon.SetModel(size, size, invert);
-            GLCommon.SetView(0.0f, 0.0f);
+            MTLCommon.SetModel(size, size, invert);
+            MTLCommon.SetView(0.0f, 0.0f);
 
             imageTexture.SetTexture(bitmap);
-            imageTexture.UseTexture();
-            rectangular.Draw();
+            MTLCommon.SetTexture(imageTexture);
+            rectangular.Draw(MTLLoadAction.Clear);
 
-            GL.Enable(EnableCap.Blend);
-            GL.BlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-            GLCommon.SetModel(size, size);
-            imageTexture.SetTexture(Time.GetTimeBitmap(width, height));
-            imageTexture.UseTexture();
+            MTLCommon.SetModel(size, size);
+            imageTexture2.SetTexture(Time.GetTimeBitmap(width, height));
+            MTLCommon.SetTexture(imageTexture2);
             rectangular.Draw();
-            GL.Disable(EnableCap.Blend);
         }
 
 		public void Draw(int width, int height, bool doubleDisplay, bool leftDisplay, bool rightDisplay, bool leftInvert, bool rightInvert)
@@ -69,42 +61,36 @@ namespace XamarinSample.iOS
                 Draw(ImageManager.ImageManagers[1].GetImage(), rightInvert);
             }
 
-            GLCommon.SetDefaultFrameBuffer();
-
-            GL.Viewport(0, 0, width, height);
-            GLCommon.GLError();
+            MTLCommon.SetDefaultFrameBuffer();
 
             // カラーを設定して、クリア
-            GL.ClearColor(0.3f, 0.4f, 0.5f, 1.0f);
-            GLCommon.GLError();
-            GL.Clear(ClearBufferMask.ColorBufferBit);
-            GLCommon.GLError();
+            MTLCommon.SetClearColor(new Color(0.3f, 0.4f, 0.5f, 1.0f));
 
-            GLCommon.UseProgram();
-
-            GLCommon.SetViewport(width, height);
+            MTLCommon.SetViewport(width, height);
 
             if (doubleDisplay)
 			{
                 float size = Math.Min((float)width / 4, (float)height / 4);
-                GLCommon.SetModel(size, size);
+                MTLCommon.SetModel(size, size);
 
-                GLCommon.SetView(-(float)width / 4, 0.0f);
-                leftFrameBuffer.UseTexture();
-                rectangular.Draw();
+                MTLCommon.SetView(-(float)width / 4, 0.0f);
+                leftFrameBuffer.SetTexture();
+                rectangular.Draw(MTLLoadAction.Clear);
 
-                GLCommon.SetView((float)width / 4, 0.0f);
-                rightFrameBuffer.UseTexture();
+                MTLCommon.SetView((float)width / 4, 0.0f);
+                rightFrameBuffer.SetTexture();
+                MTLCommon.ReservePresent();
                 rectangular.Draw();
             }
 			else
 			{
                 float size = Math.Min((float)width / 2, (float)height / 2);
-                GLCommon.SetModel(size, size);
-                GLCommon.SetView(0.0f, 0.0f);
+                MTLCommon.SetModel(size, size);
+                MTLCommon.SetView(0.0f, 0.0f);
 
-                leftFrameBuffer.UseTexture();
-                rectangular.Draw();
+                leftFrameBuffer.SetTexture();
+                MTLCommon.ReservePresent();
+                rectangular.Draw(MTLLoadAction.Clear);
             }
         }
 	}

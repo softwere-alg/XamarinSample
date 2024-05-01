@@ -1,48 +1,22 @@
 ﻿using System;
-using OpenTK.Graphics.ES30;
+using Metal;
 
 namespace XamarinSample.iOS
 {
 	public class FrameBuffer : IDisposable
     {
-        private int frameBuffer;
-        private GLTexture colorBuffer;
-        private int renderBuffer;
+        private MTLTexture colorBuffer;
         private int width;
         private int height;
         private int textureUnit;
 
-        public FrameBuffer(int width, int height, int textureUnit)
+        public FrameBuffer(int width, int height, int textureUnit, IMTLDevice device)
 		{
             this.width = width;
             this.height = height;
             this.textureUnit = textureUnit;
 
-            GL.GenFramebuffers(1, out frameBuffer);
-            GLCommon.GLError();
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, frameBuffer);
-            GLCommon.GLError();
-
-            colorBuffer = new GLTexture(width, height, textureUnit);
-
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferSlot.ColorAttachment0, TextureTarget.Texture2D, colorBuffer.TextureID, 0);
-            GLCommon.GLError();
-
-            GL.GenRenderbuffers(1, out renderBuffer);
-            GLCommon.GLError();
-            GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderBuffer);
-            GLCommon.GLError();
-            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferInternalFormat.Depth24Stencil8, width, height);
-            GLCommon.GLError();
-            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferSlot.DepthStencilAttachment, RenderbufferTarget.Renderbuffer, renderBuffer);
-            GLCommon.GLError();
-
-            if (GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer) != FramebufferErrorCode.FramebufferComplete)
-            {
-                Console.WriteLine("ERROR::FRAMEBUFFER:: Framebuffer is not complete!");
-            }
-
-            GLCommon.SetDefaultFrameBuffer();
+            colorBuffer = new MTLTexture(width, height, textureUnit, device);
         }
 
         public void Dispose()
@@ -59,11 +33,6 @@ namespace XamarinSample.iOS
             }
 
             // 非管理（unmanaged）リソースの破棄処理をここに記述します。
-            GL.DeleteFramebuffers(1, ref frameBuffer);
-            GLCommon.GLError();
-            GL.DeleteRenderbuffers(1, ref renderBuffer);
-            GLCommon.GLError();
-            colorBuffer.Dispose();
             colorBuffer = null;
         }
 
@@ -74,13 +43,17 @@ namespace XamarinSample.iOS
 
         public void SetFrameBuffer()
         {
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, frameBuffer);
-            GLCommon.GLError();
+            MTLCommon.SetFrameBuffer(colorBuffer);
         }
 
-        public void UseTexture()
+        public void SetTexture()
         {
-            colorBuffer.UseTexture();
+            MTLCommon.SetTexture(colorBuffer);
+        }
+
+        public void UseTexture(IMTLRenderCommandEncoder renderEncoder)
+        {
+            colorBuffer.UseTexture(renderEncoder);
         }
     }
 }

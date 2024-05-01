@@ -1,59 +1,115 @@
 ﻿using System;
-using GLKit;
+using System.Runtime.InteropServices;
+using Foundation;
+using Metal;
+using MetalKit;
+using MetalPerformanceShaders;
 using OpenTK;
-using OpenTK.Graphics.ES30;
+using Xamarin.Forms;
 
 namespace XamarinSample.iOS
 {
-    public static class GLCommon
+    public static class MTLCommon
     {
         /// <summary>
-        /// 頂点データ番号を定義します。
+        /// 頂点データの構造体を定義します。
         /// </summary>
-        public enum VertexAttribute
+        public struct VertexAttribute
         {
-            Position = 0,       // 頂点位置
-            TextureCoordinate   // テクスチャ座標
+            public Vector3 Position;            // 頂点位置
+            public Vector2 TextureCoordinate;   // テクスチャ座標
         }
 
         /// <summary>
-        /// シェーダに送るデータ種類を定義します。
+        /// 頂点データ以外の構造体を定義します。
         /// </summary>
-        public enum Uniform
+        [StructLayout(LayoutKind.Explicit)]
+        public struct Uniform
         {
-            ViewportSize = 0,   // ビューポートサイズ
-            ModelMatrix,        // モデル行列
-            ViewMatrix,         // ビュー行列
-            Texture,            // テクスチャ
-            Count
+            [FieldOffset(0)]
+            public Vector2i ViewportSize;   // ビューポートサイズ
+            [FieldOffset(16)]
+            public Matrix4 ModelMatrix;     // モデル行列 16byte目から配置されるように指定
+            [FieldOffset(80)]
+            public Matrix4 ViewMatrix;      // ビュー行列 80byte目から配置されるように指定
+        }
+
+        /// <summary>
+        /// バッファ番号を定義します。
+        /// </summary>
+        public enum Buffers
+        {
+            VertexAttributeIndex = 0,   // 頂点データ
+            UniformIndex                // ユニフォームデータ
+        }
+
+        /// <summary>
+        /// テスクチャ番号を定義します。
+        /// </summary>
+        public enum Textures
+        {
+            DisplayTextureIndex = 0,    // 表示するテクスチャ
         }
 
         #region メンバ変数
         /// <summary>
-        /// シェーダプログラム
+        /// ビュー
         /// </summary>
-        private static int program;
+        private static MTKView view;
 
         /// <summary>
-        /// ユニフォーム番号を保持します。
+        /// 使用するGPU
         /// </summary>
-        private static int[] uniforms = new int[(int)Uniform.Count];
+        private static IMTLDevice device;
 
-        private static GLKView view;
+        /// <summary>
+        /// コマンドキュー
+        /// </summary>
+        private static IMTLCommandQueue commandQueue;
+
+        /// <summary>
+        /// パイプラインステート
+        /// </summary>
+        private static IMTLRenderPipelineState pipelineState;
+
+        /// <summary>
+        /// ユニフォームデータ
+        /// </summary>
+        private static Uniform uniform = new Uniform();
+
+        /// <summary>
+        /// 頂点データバッファ
+        /// </summary>
+        private static IMTLBuffer vertexBuffer;
+
+        /// <summary>
+        /// 入力テクスチャ
+        /// </summary>
+        private static MTLTexture inputTexture;
+
+        /// <summary>
+        /// フレームバッファテクスチャ
+        /// </summary>
+        private static MTLTexture frameBufferTexture;
+
+        /// <summary>
+        /// クリアカラー
+        /// </summary>
+        private static Color clearColor = Color.Black;
+
+        private static bool reservedPresent = false;
         #endregion
 
-        public static void GLError()
+        public static void Initialize(MTKView view, IMTLDevice device)
         {
-            ErrorCode errorCode = GL.GetErrorCode();
-            if (errorCode != ErrorCode.NoError)
-            {
-                Console.WriteLine(errorCode);
-            }
-        }
+            // 使用するGPUの選択
+            MTLCommon.device = device;
 
-        public static void Initialize(GLKView view)
-        {
-            GLCommon.view = view;
+            MTLCommon.view = view;
+            MTLCommon.view.Device = device;
+
+            // コマンドキューの作成
+            commandQueue = device.CreateCommandQueue();
 
             // シェーダのロード
             LoadShaders();
@@ -61,13 +117,6 @@ namespace XamarinSample.iOS
 
         public static void Release()
         {
-            // シェーダの削除
-            if (program > 0)
-            {
-                GL.DeleteProgram(program);
-                GLCommon.GLError();
-                program = 0;
-            }
         }
 
         /// <summary>
@@ -76,179 +125,126 @@ namespace XamarinSample.iOS
         /// <returns></returns>
         private static bool LoadShaders()
         {
-            int vertShader, fragShader;
-
-            // シェーダプログラムの作成
-            program = GL.CreateProgram();
-            GLCommon.GLError();
-
-            // 頂点シェーダを作成
-            if (!CompileShader(ShaderType.VertexShader, Application.LoadResource("Shader/Shader", "vsh"), out vertShader))
+            // プロジェクト内のmetal拡張子のシェーダファイルを全て読み込む
+            NSError error;
+            IMTLLibrary defaultLibrary = device.CreateLibrary("default.metallib", out error);
+            if (error != null)
             {
-                Console.WriteLine("Failed to compile vertex shader");
-                return false;
-            }
-            // フラグメントシェーダを作成
-            if (!CompileShader(ShaderType.FragmentShader, Application.LoadResource("Shader/Shader", "fsh"), out fragShader))
-            {
-                Console.WriteLine("Failed to compile fragment shader");
+                Console.WriteLine("Failed to created library, error " + error);
                 return false;
             }
 
-            // シェーダプログラムに頂点シェーダを登録する
-            GL.AttachShader(program, vertShader);
-            GLCommon.GLError();
+            // 頂点シェーダの読み込み
+            IMTLFunction vertexProgram = defaultLibrary.CreateFunction("sample_vertex");
+            // フラグメントシェーダの読み込み
+            IMTLFunction fragmentProgram = defaultLibrary.CreateFunction("sample_fragment");
 
-            // シェーダプログラムにフラグメントシェーダを登録する
-            GL.AttachShader(program, fragShader);
-            GLCommon.GLError();
-
-            // 頂点データの番号を指定
-            // プログラムのリンク前に行う必要がある
-            GL.BindAttribLocation(program, (int)VertexAttribute.Position, "position");
-            GLCommon.GLError();
-            GL.BindAttribLocation(program, (int)VertexAttribute.TextureCoordinate, "texCoordinate");
-            GLCommon.GLError();
-
-            // プログラムをリンクする
-            if (!LinkProgram(program))
+            // パイプラインステートの作成
+            MTLRenderPipelineDescriptor pipelineStateDescriptor = new MTLRenderPipelineDescriptor
             {
-                Console.WriteLine("Failed to link program: {0:x}", program);
+                Label = "MyPipeline",
+                SampleCount = 1,
+                VertexFunction = vertexProgram,
+                FragmentFunction = fragmentProgram,
+            };
+            pipelineStateDescriptor.ColorAttachments[0].PixelFormat = MTLPixelFormat.BGRA8Unorm;
+            pipelineStateDescriptor.ColorAttachments[0].BlendingEnabled = true;
+            pipelineStateDescriptor.ColorAttachments[0].AlphaBlendOperation = MTLBlendOperation.Add;
+            pipelineStateDescriptor.ColorAttachments[0].RgbBlendOperation = MTLBlendOperation.Add;
+            pipelineStateDescriptor.ColorAttachments[0].SourceAlphaBlendFactor = MTLBlendFactor.SourceAlpha;
+            pipelineStateDescriptor.ColorAttachments[0].SourceRgbBlendFactor = MTLBlendFactor.SourceAlpha;
+            pipelineStateDescriptor.ColorAttachments[0].DestinationAlphaBlendFactor = MTLBlendFactor.OneMinusSourceAlpha;
+            pipelineStateDescriptor.ColorAttachments[0].DestinationRgbBlendFactor = MTLBlendFactor.OneMinusSourceAlpha;
+            pipelineState = device.CreateRenderPipelineState(pipelineStateDescriptor, out error);
 
-                if (vertShader != 0)
-                {
-                    GL.DeleteShader(vertShader);
-                    GLCommon.GLError();
-                }
-
-                if (fragShader != 0)
-                {
-                    GL.DeleteShader(fragShader);
-                    GLCommon.GLError();
-                }
-
-                if (program != 0)
-                {
-                    GL.DeleteProgram(program);
-                    GLCommon.GLError();
-                    program = 0;
-                }
-                return false;
-            }
-
-            // ユニフォーム番号の取得
-            uniforms[(int)Uniform.ViewportSize] = GL.GetUniformLocation(program, "viewportSize");
-            GLCommon.GLError();
-            uniforms[(int)Uniform.ModelMatrix] = GL.GetUniformLocation(program, "modelMatrix");
-            GLCommon.GLError();
-            uniforms[(int)Uniform.ViewMatrix] = GL.GetUniformLocation(program, "viewMatrix");
-            GLCommon.GLError();
-            uniforms[(int)Uniform.Texture] = GL.GetUniformLocation(program, "s_texture");
-            GLCommon.GLError();
-
-            // 一時オブジェクトの解放
-            if (vertShader != 0)
+            if (pipelineState == null)
             {
-                GL.DetachShader(program, vertShader);
-                GLCommon.GLError();
-                GL.DeleteShader(vertShader);
-                GLCommon.GLError();
-            }
-            if (fragShader != 0)
-            {
-                GL.DetachShader(program, fragShader);
-                GLCommon.GLError();
-                GL.DeleteShader(fragShader);
-                GLCommon.GLError();
-            }
-
-            return true;
-        }
-
-        /// <summary>
-        /// シェーダをコンパイルします。
-        /// </summary>
-        /// <param name="type">シェーダタイプ</param>
-        /// <param name="src">コード</param>
-        /// <param name="shader">シェーダ番号</param>
-        /// <returns></returns>
-        private static bool CompileShader(ShaderType type, string src, out int shader)
-        {
-            // シェーダ作成後、コンパイル
-            shader = GL.CreateShader(type);
-            GLCommon.GLError();
-            GL.ShaderSource(shader, src);
-            GLCommon.GLError();
-            GL.CompileShader(shader);
-            GLCommon.GLError();
-
-#if DEBUG
-            int logLength = 0;
-            GL.GetShader(shader, ShaderParameter.InfoLogLength, out logLength);
-            GLCommon.GLError();
-            if (logLength > 0)
-            {
-                Console.WriteLine("Shader compile log:\n{0}", GL.GetShaderInfoLog(shader));
-            }
-#endif
-
-            // シェーダ番号取得
-            int status = 0;
-            GL.GetShader(shader, ShaderParameter.CompileStatus, out status);
-            GLCommon.GLError();
-            if (status == 0)
-            {
-                GL.DeleteShader(shader);
-                GLCommon.GLError();
+                Console.WriteLine("Failed to created pipeline state, error " + error);
                 return false;
             }
 
             return true;
         }
 
-        /// <summary>
-        /// プログラムをリンクします。
-        /// </summary>
-        /// <param name="prog">プログラム番号</param>
-        /// <returns></returns>
-        private static bool LinkProgram(int prog)
+        public static void DrawPrimitives(MTLPrimitiveType primitiveType, nuint vertexStart, nuint vertexCount, MTLLoadAction loadAction = MTLLoadAction.Load, MTLStoreAction storeAction = MTLStoreAction.Store)
         {
-            GL.LinkProgram(prog);
-            GLCommon.GLError();
+            // コマンドバッファを作成
+            IMTLCommandBuffer commandBuffer = commandQueue.CommandBuffer();
+            commandBuffer.Label = "MyCommand";
 
-#if DEBUG
-            int logLength = 0;
-            GL.GetProgram(prog, ProgramParameter.InfoLogLength, out logLength);
-            GLCommon.GLError();
-            if (logLength > 0)
+            if (commandBuffer == null)
             {
-                Console.WriteLine("Program link log:\n{0}", GL.GetProgramInfoLog(prog));
-                GLCommon.GLError();
+                Console.WriteLine("commandBuffer is null");
+                return;
             }
-#endif
-            int status = 0;
-            GL.GetProgram(prog, ProgramParameter.LinkStatus, out status);
-            GLCommon.GLError();
-            return status != 0;
+
+            MTLRenderPassDescriptor renderPassDescriptor;
+            if (frameBufferTexture == null)
+            {
+                renderPassDescriptor = view.CurrentRenderPassDescriptor;
+            }
+            else
+            {
+                renderPassDescriptor = new MTLRenderPassDescriptor();
+                renderPassDescriptor.ColorAttachments[0].Texture = frameBufferTexture.Texture;
+            }
+            renderPassDescriptor.ColorAttachments[0].ClearColor = new MTLClearColor(clearColor.R, clearColor.G, clearColor.B, clearColor.A);
+            renderPassDescriptor.ColorAttachments[0].LoadAction = loadAction;
+            renderPassDescriptor.ColorAttachments[0].StoreAction = storeAction;
+            renderPassDescriptor.RenderTargetWidth = (nuint)uniform.ViewportSize.X;
+            renderPassDescriptor.RenderTargetHeight = (nuint)uniform.ViewportSize.Y;
+
+            // レンダーコマンドエンコーダを作成
+            IMTLRenderCommandEncoder renderEncoder = commandBuffer.CreateRenderCommandEncoder(renderPassDescriptor);
+            renderEncoder.Label = "MyRenderEncoder";
+
+            // パイプラインステート指定
+            renderEncoder.SetRenderPipelineState(pipelineState);
+
+            // 頂点データバッファ指定
+            renderEncoder.SetVertexBuffer(vertexBuffer, 0, (uint)Buffers.VertexAttributeIndex);
+            // ユニフォームデータ設定
+            GetUnmanagedMemory(uniform, (IntPtr ptr, int length) => renderEncoder.SetVertexBytes(ptr, (nuint)length, (uint)Buffers.UniformIndex));
+            // テクスチャ指定
+            inputTexture.UseTexture(renderEncoder);
+
+            // プリミティブを指定
+            renderEncoder.DrawPrimitives(primitiveType, vertexStart, vertexCount);
+
+            // エンコード終了を通知
+            renderEncoder.EndEncoding();
+
+            if (reservedPresent == true)
+            {
+                // コマンド完了後の表示をスケジュールする
+                commandBuffer.PresentDrawable(view.CurrentDrawable);
+                reservedPresent = false;
+            }
+
+            // コマンドバッファをGPUに送る
+            commandBuffer.Commit();
+
+            commandBuffer = null;
         }
 
-        public static void UseProgram()
+        public static void ReservePresent()
         {
-            // シェーダプログラムを指定
-            GL.UseProgram(program);
-            GLCommon.GLError();
+            reservedPresent = true;
         }
 
         public static void SetDefaultFrameBuffer()
         {
-            view.BindDrawable();
+            frameBufferTexture = null;
+        }
+
+        public static void SetFrameBuffer(MTLTexture texture)
+        {
+            frameBufferTexture = texture;
         }
 
         public static void SetViewport(int width, int height)
         {
-            Vector2i viewportSize = new Vector2i(width, height);
-            GL.Uniform2(uniforms[(int)Uniform.ViewportSize], viewportSize.X, viewportSize.Y);
-            GLCommon.GLError();
+            uniform.ViewportSize = new Vector2i(width, height);
         }
 
         public static void SetModel(float scaleX, float scaleY, bool invert = false)
@@ -258,21 +254,115 @@ namespace XamarinSample.iOS
             Matrix4 scaleMatrix = Matrix4.Scale((float)scaleX, (float)scaleY, 1.0f);
 
             Matrix4 modelMatrix = translationMatrix * rotationMatrix * scaleMatrix;
-            GL.UniformMatrix4(uniforms[(int)Uniform.ModelMatrix], false, ref modelMatrix);
-            GLCommon.GLError();
+
+            uniform.ModelMatrix = modelMatrix;
         }
 
         public static void SetView(float x, float y)
         {
             Matrix4 viewMatrix = Matrix4.CreateTranslation(x, y, 0.0f);
-            GL.UniformMatrix4(uniforms[(int)Uniform.ViewMatrix], false, ref viewMatrix);
-            GLCommon.GLError();
+
+            uniform.ViewMatrix = viewMatrix;
         }
 
-        public static void SetTextureUniform(int textureUnit)
+        public static void SetVertexBuffer(IMTLBuffer vertexBuffer)
         {
-            GL.Uniform1(uniforms[(int)Uniform.Texture], textureUnit);
-            GLCommon.GLError();
+            MTLCommon.vertexBuffer = vertexBuffer;
+        }
+
+        public static void SetTexture(MTLTexture texture)
+        {
+            inputTexture = texture;
+        }
+
+        public static void SetClearColor(Color color)
+        {
+            clearColor = color;
+        }
+
+        /// <summary>
+        /// 構造体をバッファにコピーします。
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="st">構造体</param>
+        /// <param name="buffer">バッファ</param>
+        public static void CopyToBuffer<T>(T st, IMTLBuffer buffer) where T : struct
+        {
+            // 構造体のサイズ取得
+            int rawsize = Marshal.SizeOf(typeof(T));
+
+            // マネージドバイト配列確保
+            byte[] rawdata = new byte[rawsize];
+            // アンマネージドメモリ確保
+            IntPtr ptr = Marshal.AllocHGlobal(rawsize);
+
+            // 構造体データをアンマネージドメモリにコピー
+            Marshal.StructureToPtr(st, ptr, false);
+            // アンマネージドメモリからバイト配列にコピー
+            Marshal.Copy(ptr, rawdata, 0, rawsize);
+
+            // アンマネージドメモリ解放
+            Marshal.FreeHGlobal(ptr);
+
+            // バイト配列からバッファにデータをコピー
+            Marshal.Copy(rawdata, 0, buffer.Contents, rawsize);
+        }
+
+        /// <summary>
+        /// 構造体配列をバッファにコピーします。
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="st">構造体配列</param>
+        /// <param name="buffer">バッファ</param>
+        public static void CopyToBuffer<T>(T[] st, IMTLBuffer buffer) where T : struct
+        {
+            // 構造体のサイズ取得
+            int typesize = Marshal.SizeOf(typeof(T));
+            // 全体のサイズ取得
+            int rawsize = typesize * st.Length;
+
+            // マネージドバイト配列確保
+            byte[] rawdata = new byte[rawsize];
+            // アンマネージドメモリ確保
+            IntPtr ptr = Marshal.AllocHGlobal(typesize);
+
+            for (int i = 0; i < st.Length; i++)
+            {
+                // 構造体データをアンマネージドメモリにコピー
+                Marshal.StructureToPtr(st[i], ptr, false);
+                // アンマネージドメモリからバイト配列にコピー
+                Marshal.Copy(ptr, rawdata, typesize * i, typesize);
+            }
+
+            // アンマネージドメモリ解放
+            Marshal.FreeHGlobal(ptr);
+
+            // バイト配列からバッファにデータをコピー
+            Marshal.Copy(rawdata, 0, buffer.Contents, rawsize);
+        }
+
+        /// <summary>
+        /// 構造体のアンマネージドメモリを取得します。
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="st">構造体</param>
+        /// <param name="buffer">バッファ</param>
+        public static void GetUnmanagedMemory<T>(T st, Action<IntPtr, int> action) where T : struct
+        {
+            // 構造体のサイズ取得
+            int rawsize = Marshal.SizeOf(typeof(T));
+
+            // アンマネージドメモリ確保
+            IntPtr ptr = Marshal.AllocHGlobal(rawsize);
+
+            // 構造体データをアンマネージドメモリにコピー
+            Marshal.StructureToPtr(st, ptr, false);
+
+            // コールバック呼び出し
+            action(ptr, rawsize);
+
+            // アンマネージドメモリ解放
+            Marshal.FreeHGlobal(ptr);
         }
     }
 }

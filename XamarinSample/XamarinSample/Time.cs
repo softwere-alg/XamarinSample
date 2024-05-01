@@ -24,7 +24,7 @@ namespace XamarinSample
             using (SKCanvas bitmapCanvas = new SKCanvas(flippedBitmap))
             {
                 bitmapCanvas.Clear(new SKColor(0, 0, 0, 0));
-                bitmapCanvas.Scale(1, -1, 0, bitmap.Height / 2);
+                bitmapCanvas.Scale(1, 1, 0, bitmap.Height / 2);
                 bitmapCanvas.DrawBitmap(bitmap, new SKPoint());
             }
 

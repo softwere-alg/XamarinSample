@@ -1,20 +1,21 @@
 ﻿using System;
-using OpenTK.Graphics.ES30;
+using System.Runtime.InteropServices;
 using SkiaSharp;
+using Metal;
 
 namespace XamarinSample.iOS
 {
-	public class GLTexture : IDisposable
+	public class MTLTexture : IDisposable
     {
         /// <summary>
-        /// テクスチャID
+        /// テクスチャ
         /// </summary>
-        public int TextureID { get; private set; }
+        public IMTLTexture Texture { get; private set; }
 
         /// <summary>
-        /// テクスチャユニット
+        /// サンプラー
         /// </summary>
-        private int textureUnit;
+        public IMTLSamplerState Sampler { get; private set; }
 
         /// <summary>
         /// テクスチャ幅
@@ -26,40 +27,38 @@ namespace XamarinSample.iOS
         /// </summary>
         public int Height { get; private set; }
 
-        public GLTexture(int width, int height, int textureUnit)
+        /// <summary>
+        /// テスクチャインデックス
+        /// </summary>
+        private uint index;
+
+        public MTLTexture(int width, int height, int index, IMTLDevice device)
 		{
-            this.textureUnit = textureUnit;
             Width = width;
             Height = height;
+            this.index = (uint)index;
 
-            GL.ActiveTexture(TextureUnit.Texture0 + TextureID);
-            GLCommon.GLError();
+            CreateTexture(device);
 
-            // テスクチャ番号取得
-            TextureID = GL.GenTexture();
-            GLCommon.GLError();
+            MTLSamplerDescriptor samplerDescriptor = new MTLSamplerDescriptor();
 
-            // テスクチャの指定
-            GL.BindTexture(TextureTarget.Texture2D, TextureID);
-            GLCommon.GLError();
+            samplerDescriptor.SAddressMode = MTLSamplerAddressMode.ClampToEdge;
+            samplerDescriptor.TAddressMode = MTLSamplerAddressMode.ClampToEdge;
+            samplerDescriptor.MinFilter = MTLSamplerMinMagFilter.Linear;
+            samplerDescriptor.MagFilter = MTLSamplerMinMagFilter.Linear;
 
-            // テスクチャパラメータ指定
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-            GLCommon.GLError();
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-            GLCommon.GLError();
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Linear);
-            GLCommon.GLError();
-            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)TextureMagFilter.Linear);
-            GLCommon.GLError();
+            Sampler = device.CreateSamplerState(samplerDescriptor);
+        }
 
-            // テスクチャの初期化
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, Width, Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, (IntPtr)0);
-            GLCommon.GLError();
+        private void CreateTexture(IMTLDevice device)
+        {
+            MTLTextureDescriptor textureDescriptor = new MTLTextureDescriptor();
 
-            // テスクチャの指定解除
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GLCommon.GLError();
+            textureDescriptor.PixelFormat = MTLPixelFormat.RGBA8Unorm;
+            textureDescriptor.Width = (nuint)Width;
+            textureDescriptor.Height = (nuint)Height;
+
+            Texture = device.CreateTexture(textureDescriptor);
         }
 
         public void Dispose()
@@ -77,11 +76,11 @@ namespace XamarinSample.iOS
 
             // 非管理（unmanaged）リソースの破棄処理をここに記述します。
             // テクスチャの削除
-            GL.DeleteTexture(TextureID);
-            GLCommon.GLError();
+            Texture = null;
+            Sampler = null;
         }
 
-        ~GLTexture()
+        ~MTLTexture()
         {
             Dispose(false);
         }
@@ -89,14 +88,11 @@ namespace XamarinSample.iOS
         /// <summary>
         /// テスクチャの使用を通知します。
         /// </summary>
-        public void UseTexture()
+        /// <param name="renderEncoder">エンコーダ</param>
+        public void UseTexture(IMTLRenderCommandEncoder renderEncoder)
         {
-            // テクスチャを指定
-            GL.ActiveTexture(TextureUnit.Texture0 + textureUnit);
-            GLCommon.GLError();
-            GL.BindTexture(TextureTarget.Texture2D, TextureID);
-            GLCommon.GLError();
-            GLCommon.SetTextureUniform(textureUnit);
+            renderEncoder.SetFragmentTexture(Texture, index);
+            renderEncoder.SetFragmentSamplerState(Sampler, index);
         }
 
         /// <summary>
@@ -105,26 +101,15 @@ namespace XamarinSample.iOS
         /// <param name="bitmap">ビットマップ</param>
         public void SetTexture(SKBitmap bitmap)
         {
-            GL.BindTexture(TextureTarget.Texture2D, TextureID);
-            GLCommon.GLError();
-
-            // サイズが違う場合は、テスクチャの初期化してからビットマップを設定
+            // サイズが違う場合は、テスクチャの初期化
             if (Width != bitmap.Width || Height != bitmap.Height)
             {
                 Width = bitmap.Width;
                 Height = bitmap.Height;
-                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, Width, Height, 0, PixelFormat.Rgba, PixelType.UnsignedByte, bitmap.GetPixels());
-                GLCommon.GLError();
-            }
-            // サイズが同じ場合は、テスクチャにビットマップを設定
-            else
-            {
-                GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, Width, Height, PixelFormat.Rgba, PixelType.UnsignedByte, bitmap.GetPixels());
-                GLCommon.GLError();
+                CreateTexture(Texture.Device);
             }
 
-            GL.BindTexture(TextureTarget.Texture2D, 0);
-            GLCommon.GLError();
+            Texture.ReplaceRegion(MTLRegion.Create2D(0, 0, Width, Height), 0, bitmap.GetPixels(), (nuint)(4 * Width));
         }
 
         /// <summary>
@@ -132,23 +117,11 @@ namespace XamarinSample.iOS
         /// </summary>
         public void GetTexture()
         {
-            byte[] bytes = new byte[Width * Height * 4];
+            IntPtr ptr = Marshal.AllocHGlobal(Width * Height * 4);
 
-            int fbo;
-            GL.GenFramebuffers(1, out fbo);
-            GLCommon.GLError();
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-            GLCommon.GLError();
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferSlot.ColorAttachment0, TextureTarget.Texture2D, TextureID, 0);
-            GLCommon.GLError();
+            Texture.GetBytes(ptr, (nuint)(4 * Width), MTLRegion.Create2D(0, 0, Width, Height), 0);
 
-            GL.ReadPixels(0, 0, Width, Height, PixelFormat.Rgba, PixelType.UnsignedByte, bytes);
-            GLCommon.GLError();
-
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            GLCommon.GLError();
-            GL.DeleteFramebuffers(1, new int[] { fbo });
-            GLCommon.GLError();
+            Marshal.FreeHGlobal(ptr);
         }
     }
 }
