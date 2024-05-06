@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using Foundation;
 using Metal;
 using MetalKit;
-using MetalPerformanceShaders;
 using OpenTK;
 using Xamarin.Forms;
 
@@ -223,8 +222,6 @@ namespace XamarinSample.iOS
 
             // コマンドバッファをGPUに送る
             commandBuffer.Commit();
-
-            commandBuffer = null;
         }
 
         public static void ReservePresent()

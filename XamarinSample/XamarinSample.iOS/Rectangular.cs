@@ -52,12 +52,12 @@ namespace XamarinSample.iOS
         {
             if (disposing)
             {
-                // 管理（managed）リソースの破棄処理をここに記述します。 
+                // 管理（managed）リソースの破棄処理をここに記述します。
+                // 頂点バッファオブジェクトの削除
+                vertexBuffer = null;
             }
 
             // 非管理（unmanaged）リソースの破棄処理をここに記述します。
-            // 頂点バッファオブジェクトの削除
-            vertexBuffer = null;
         }
 
         ~Rectangular()

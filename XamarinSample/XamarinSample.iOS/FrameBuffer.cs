@@ -29,11 +29,11 @@ namespace XamarinSample.iOS
         {
             if (disposing)
             {
-                // 管理（managed）リソースの破棄処理をここに記述します。 
+                // 管理（managed）リソースの破棄処理をここに記述します。
+                colorBuffer = null;
             }
 
             // 非管理（unmanaged）リソースの破棄処理をここに記述します。
-            colorBuffer = null;
         }
 
         ~FrameBuffer()

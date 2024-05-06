@@ -71,13 +71,13 @@ namespace XamarinSample.iOS
         {
             if (disposing)
             {
-                // 管理（managed）リソースの破棄処理をここに記述します。 
+                // 管理（managed）リソースの破棄処理をここに記述します。
+                // テクスチャの削除
+                Texture = null;
+                Sampler = null;
             }
 
             // 非管理（unmanaged）リソースの破棄処理をここに記述します。
-            // テクスチャの削除
-            Texture = null;
-            Sampler = null;
         }
 
         ~MTLTexture()

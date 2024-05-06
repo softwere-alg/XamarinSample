@@ -5,18 +5,15 @@ namespace XamarinSample
 {
 	public class ImageManager : IDisposable
     {
-        public static ImageManager[] ImageManagers = new ImageManager[] { new ImageManager(), new ImageManager() };
+        public static ImageManager[] ImageManagers = new ImageManager[] { new ImageManager(500, 500), new ImageManager(500, 500) };
 
 		private SKBitmap bitmap;
 		private object _lock = new object();
         private System.Timers.Timer timer;
         private int angle = 0;
 
-        public ImageManager()
+        public ImageManager(int width, int height)
 		{
-			int width = 500;
-			int height = 500;
-
 			bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
 
             using (SKCanvas bitmapCanvas = new SKCanvas(bitmap))

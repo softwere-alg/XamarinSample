@@ -5,7 +5,6 @@ using Xamarin.Forms;
 using Xamarin.Forms.Platform.iOS;
 using CoreGraphics;
 using System.ComponentModel;
-using UIKit;
 using MetalKit;
 using Metal;
 
