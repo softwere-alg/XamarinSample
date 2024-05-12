@@ -49,6 +49,8 @@ namespace XamarinSample.iOS.CustomControl
 
                     // Viewの設定
                     mtkView.ColorPixelFormat = MTLPixelFormat.BGRA8Unorm;
+                    mtkView.DepthStencilPixelFormat = MTLPixelFormat.Depth32Float;
+                    mtkView.ClearDepth = 1.0;
                     mtkView.Delegate = this;
 
                     this.Element.SizeChanged += Element_SizeChanged;

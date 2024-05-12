@@ -7,8 +7,8 @@ namespace XamarinSample
 	{
 		public static SKBitmap GetTimeBitmap(int width, int height)
 		{
-            SKBitmap bitmap = new SKBitmap(width, height);
-            SKBitmap flippedBitmap = new SKBitmap(width, height);
+            SKBitmap bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
+            SKBitmap flippedBitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
 
             using (SKCanvas bitmapCanvas = new SKCanvas(bitmap))
             {

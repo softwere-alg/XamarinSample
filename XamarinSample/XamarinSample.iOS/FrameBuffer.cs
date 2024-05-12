@@ -16,7 +16,7 @@ namespace XamarinSample.iOS
             this.height = height;
             this.textureUnit = textureUnit;
 
-            colorBuffer = new MTLTexture(width, height, textureUnit, device);
+            colorBuffer = new MTLTexture(width, height, textureUnit, device, true);
         }
 
         public void Dispose()

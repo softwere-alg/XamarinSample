@@ -146,6 +146,7 @@ namespace XamarinSample.iOS
                 VertexFunction = vertexProgram,
                 FragmentFunction = fragmentProgram,
             };
+            pipelineStateDescriptor.DepthAttachmentPixelFormat = MTLPixelFormat.Depth32Float;
             pipelineStateDescriptor.ColorAttachments[0].PixelFormat = MTLPixelFormat.BGRA8Unorm;
             pipelineStateDescriptor.ColorAttachments[0].BlendingEnabled = true;
             pipelineStateDescriptor.ColorAttachments[0].AlphaBlendOperation = MTLBlendOperation.Add;
@@ -177,25 +178,27 @@ namespace XamarinSample.iOS
                 return;
             }
 
-            MTLRenderPassDescriptor renderPassDescriptor;
+            MTLRenderPassDescriptor renderPassDescriptor = view.CurrentRenderPassDescriptor;
             if (frameBufferTexture == null)
             {
-                renderPassDescriptor = view.CurrentRenderPassDescriptor;
+                //renderPassDescriptor = view.CurrentRenderPassDescriptor;
             }
             else
             {
-                renderPassDescriptor = new MTLRenderPassDescriptor();
+                //renderPassDescriptor = new MTLRenderPassDescriptor();
                 renderPassDescriptor.ColorAttachments[0].Texture = frameBufferTexture.Texture;
             }
             renderPassDescriptor.ColorAttachments[0].ClearColor = new MTLClearColor(clearColor.R, clearColor.G, clearColor.B, clearColor.A);
             renderPassDescriptor.ColorAttachments[0].LoadAction = loadAction;
             renderPassDescriptor.ColorAttachments[0].StoreAction = storeAction;
-            renderPassDescriptor.RenderTargetWidth = (nuint)uniform.ViewportSize.X;
-            renderPassDescriptor.RenderTargetHeight = (nuint)uniform.ViewportSize.Y;
+            //renderPassDescriptor.RenderTargetWidth = (nuint)uniform.ViewportSize.X;
+            //renderPassDescriptor.RenderTargetHeight = (nuint)uniform.ViewportSize.Y;
 
             // レンダーコマンドエンコーダを作成
             IMTLRenderCommandEncoder renderEncoder = commandBuffer.CreateRenderCommandEncoder(renderPassDescriptor);
             renderEncoder.Label = "MyRenderEncoder";
+
+            renderEncoder.SetCullMode(MTLCullMode.None);
 
             // パイプラインステート指定
             renderEncoder.SetRenderPipelineState(pipelineState);

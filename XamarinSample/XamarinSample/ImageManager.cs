@@ -14,7 +14,7 @@ namespace XamarinSample
 
         public ImageManager(int width, int height)
 		{
-			bitmap = new SKBitmap(width, height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+			bitmap = new SKBitmap(width, height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
 
             using (SKCanvas bitmapCanvas = new SKCanvas(bitmap))
             {
@@ -71,7 +71,7 @@ namespace XamarinSample
 
 		public SKBitmap GetImage()
 		{
-            SKBitmap rotatedBitmap = new SKBitmap(bitmap.Width, bitmap.Height);
+            SKBitmap rotatedBitmap = new SKBitmap(bitmap.Width, bitmap.Height, SKColorType.Bgra8888, SKAlphaType.Unpremul);
 
             lock (_lock)
             {

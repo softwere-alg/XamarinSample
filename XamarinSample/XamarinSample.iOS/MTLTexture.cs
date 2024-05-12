@@ -32,13 +32,13 @@ namespace XamarinSample.iOS
         /// </summary>
         private uint index;
 
-        public MTLTexture(int width, int height, int index, IMTLDevice device)
+        public MTLTexture(int width, int height, int index, IMTLDevice device, bool frameBuffer)
 		{
             Width = width;
             Height = height;
             this.index = (uint)index;
 
-            CreateTexture(device);
+            CreateTexture(device, frameBuffer);
 
             MTLSamplerDescriptor samplerDescriptor = new MTLSamplerDescriptor();
 
@@ -50,13 +50,18 @@ namespace XamarinSample.iOS
             Sampler = device.CreateSamplerState(samplerDescriptor);
         }
 
-        private void CreateTexture(IMTLDevice device)
+        private void CreateTexture(IMTLDevice device, bool frameBuffer)
         {
             MTLTextureDescriptor textureDescriptor = new MTLTextureDescriptor();
 
-            textureDescriptor.PixelFormat = MTLPixelFormat.RGBA8Unorm;
+            textureDescriptor.PixelFormat = MTLPixelFormat.BGRA8Unorm;
             textureDescriptor.Width = (nuint)Width;
             textureDescriptor.Height = (nuint)Height;
+            textureDescriptor.Usage = MTLTextureUsage.ShaderRead;
+            if (frameBuffer)
+            {
+                textureDescriptor.Usage |= MTLTextureUsage.RenderTarget;
+            }
 
             Texture = device.CreateTexture(textureDescriptor);
         }
@@ -106,7 +111,7 @@ namespace XamarinSample.iOS
             {
                 Width = bitmap.Width;
                 Height = bitmap.Height;
-                CreateTexture(Texture.Device);
+                CreateTexture(Texture.Device, (Texture.GetUsage() & MTLTextureUsage.RenderTarget) == MTLTextureUsage.RenderTarget);
             }
 
             Texture.ReplaceRegion(MTLRegion.Create2D(0, 0, Width, Height), 0, bitmap.GetPixels(), (nuint)(4 * Width));

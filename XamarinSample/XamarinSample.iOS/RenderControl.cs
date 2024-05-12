@@ -16,8 +16,8 @@ namespace XamarinSample.iOS
         public RenderControl(IMTLDevice device)
 		{
 			rectangular = new Rectangular(device);
-            imageTexture = new MTLTexture(500, 500, 0, device);
-            imageTexture2 = new MTLTexture(500, 500, 0, device);
+            imageTexture = new MTLTexture(500, 500, 0, device, false);
+            imageTexture2 = new MTLTexture(500, 500, 0, device, false);
             leftFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0, device);
             rightFrameBuffer = new FrameBuffer(imageTexture.Width, imageTexture.Height, 0, device);
         }
